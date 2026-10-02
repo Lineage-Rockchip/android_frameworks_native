@@ -93,6 +93,7 @@ protected:
     TracedOrdinal<bool> mHwcFrameMissed;
     TracedOrdinal<bool> mGpuFrameMissed;
     bool mWouldBackpressureHwc = false;
+    bool mDisableFramePendingBySvep;
 
     struct PresentFence {
         sp<Fence> fence = Fence::NO_FENCE;

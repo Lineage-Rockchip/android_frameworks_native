@@ -17,6 +17,7 @@
 #include <common/FlagManager.h>
 #include <common/trace.h>
 #include <scheduler/FrameTargeter.h>
+#include <android-base/properties.h>
 #include <scheduler/IVsyncSource.h>
 #include <utils/Log.h>
 
@@ -27,7 +28,9 @@ FrameTarget::FrameTarget(const std::string& displayLabel)
       : mFramePending("PrevFramePending " + displayLabel, false),
         mFrameMissed("PrevFrameMissed " + displayLabel, false),
         mHwcFrameMissed("PrevHwcFrameMissed " + displayLabel, false),
-        mGpuFrameMissed("PrevGpuFrameMissed " + displayLabel, false) {}
+        mGpuFrameMissed("PrevGpuFrameMissed " + displayLabel, false),
+        mDisableFramePendingBySvep(base::GetBoolProperty(
+                "debug.sf.disable_frame_pending_by_svep_running", false)) {}
 
 std::pair<bool /* wouldBackpressure */, FrameTarget::PresentFence>
 FrameTarget::expectedSignaledPresentFence(Period vsyncPeriod, Period minFramePeriod) const {
@@ -153,6 +156,11 @@ void FrameTargeter::beginFrame(const BeginFrameArgs& args, const IVsyncSource& v
     const auto& isFencePending = *isFencePendingFuncPtr;
     mFramePending = fence.fenceTime != FenceTime::NO_FENCE &&
             isFencePending(fence.fenceTime, graceTimeForPresentFenceMs);
+
+    if (mDisableFramePendingBySvep && mFramePending &&
+        base::GetIntProperty("vendor.hwc.svep_state", 0) > 0) {
+        mFramePending = false;
+    }
 
     // A frame is missed if the prior frame is still pending. If no longer pending, then we still
     // count the frame as missed if the predicted present time was further in the past than when the
